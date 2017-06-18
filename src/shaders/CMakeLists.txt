@@ -44,6 +44,7 @@ endmacro ()
 
 file (GLOB shader_headers "*.h")
 file (GLOB shader_source "*.osl")
+file (GLOB shader_source "alshaders/*.osl")
 
 foreach (_shadername ${shader_source})
     osl_compile (${_shadername} shader_objs shader_headers)

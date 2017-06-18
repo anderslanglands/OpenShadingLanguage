@@ -1,0 +1,81 @@
+//
+// This software is released under the MIT licence
+//
+// Copyright (c) 2013-2017 Anders Langlands
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to 
+// deal in the Software without restriction, including without limitation the 
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+// sell copies of the Software, and to permit persons to whom the Software is 
+// furnished to do so, subject to the following conditions: 
+//
+//      The above copyright notice and this permission notice shall be included 
+//      in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+// IN THE SOFTWARE.
+//
+
+// This code is ported from alshaders original C++ implementation.
+// https://bitbucket.org/anderslanglands/alshaders
+// with some modifications by the appleseed team:
+// https://github.com/appleseedhq/appleseed/
+
+shader al_blackbody
+    [[
+        string help = "Generates a color in the renderer's working color space"
+        "from the blackbody spectrum for the given temperature. Useful for "
+        "fire, lava, light colors and any self-illuminated object.",
+    ]]
+(
+    float temperature = 1000
+    [[
+        string label = "Temperature",
+        float min = 273,
+        float max = 16000,
+        string units = "kelvin",
+        string help = "From low to high the spectrum goes through red,"
+        "orange, yellow, white, blue.",
+    ]],
+    float input_min = 0
+    [[
+        string label = "Temperature min",
+        string help = "Remaps the input temperature to the desired range. "
+        "This can be useful for example to take a 0-1 input signal from a "
+        "texture or attribute to a temperature value."
+    ]],
+    float input_max = 1
+    [[
+        string label = "Temperature max",
+        string help = "Remaps the input temperature to the desired range. "
+        "This can be useful for example to take a 0-1 input signal from a "
+        "texture or attribute to a temperature value."
+    ]],
+    float strength = 1.0
+    [[
+        string label = "Strength",
+        float min = 0,
+        string help = "Multiplier on the brightness of the generated color.",
+    ]],
+    float physical_exposure = -20.0
+    [[
+        string label = "Physical exposure",
+        string page = "Advanced",
+        string help = "An overall exposure value to apply to the color. This "
+        "is useful to preserve the physical brightness curve but get "
+        "low-temperature colors into a sensible range if your camera model is "
+        "not set up for physical exposure settings",
+    ]],
+    output color result = 0
+)
+{
+    float kelvin = mix(input_min, input_max, temperature);
+    result = blackbody(kelvin) / M_PI;
+    result *= strength * pow(2, physical_exposure);
+}

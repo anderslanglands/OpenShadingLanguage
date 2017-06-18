@@ -1,0 +1,104 @@
+//
+// This software is released under the MIT licence
+//
+// Copyright (c) 2013-2017 Anders Langlands
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to 
+// deal in the Software without restriction, including without limitation the 
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+// sell copies of the Software, and to permit persons to whom the Software is 
+// furnished to do so, subject to the following conditions: 
+//
+//      The above copyright notice and this permission notice shall be included 
+//      in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+// IN THE SOFTWARE.
+//
+
+// This code is ported from alshaders original C++ implementation:
+// https://bitbucket.org/anderslanglands/alshaders
+// with some modifications by the appleseed team:
+// https://github.com/appleseedhq/appleseed/
+
+shader al_jitter_color [[
+    string help = "Uses the input float signal as a seed to randomly alter the "
+                  "input color. The input signal might be a per-face variable, "
+                  "or an object id. For example, with a unique value per leaf "
+                  "on a tree, this node can add random color variation to a "
+                  "leaf texture. The input signal is assumed to be integer "
+                  "valued"
+]] (
+    color input = color(0) [[
+        string label = "Input",
+        string help = "The color value on which to apply randomization"
+    ]],
+    float signal = 0 [[
+        string label = "Signal",
+        string help = "The signal to use to drive randomization. For example, "
+        "in the case of leaves on a tree, each leaf would have an integer "
+        "value 0, 1, 2, 3...N for N leaves"
+    ]],
+    float saturation_min = 0 [[
+        string label = "Saturation min",
+        string help = "The minimum value for the random saturation range"
+    ]],
+    float saturation_max = 1 [[
+        string label = "Saturation max",
+        string help = "The maximum value for the random saturation range"
+    ]],
+    float hue_offset_min = 0 [[
+        string label = "Hue offset min",
+        string help = "The minimum value for the random hue offset"
+    ]],
+    float hue_offset_max = 1 [[
+        string label = "Hue offset max",
+        string help = "The maximum value for the random hue offset"
+    ]],
+    float gain_min = 0 [[
+        string label = "Gain min",
+        string help = "The minimum value for the random gain range"
+    ]],
+    float gain_max = 1 [[
+        string label = "Gain max",
+        string help = "The maximum value for the random gain range"
+    ]],
+    int clamp_result = 1 [[
+        string label = "Clamp",
+        string widget = "checkBox",
+        string help = "Enable to clamp the output value to the [0,1] range."
+    ]],
+    output color result = color(0),
+) {
+    result = input;
+    
+    float saturation = noise("cell", signal, 997);
+    saturation = mix(saturation_min, saturation_max, saturation);
+    if (saturation != 1) {
+        float l = luminance(result);
+        result = mix(color(l), result, saturation);
+    }
+
+    float hue_offset = noise("cell", signal, 577);
+    hue_offset = mix(hue_offset_min, hue_offset_max, hue_offset);
+    if (hue_offset != 0) {
+        result = transformc("rgb", "hsv", result);
+        result[0] += hue_offset;
+        result = transformc("hsv", "rgb", result);
+    }
+
+    float gain = noise("cell", signal, 313);
+    gain = mix(gain_min, gain_max, gain);
+    result *= gain;
+
+    if (clamp_result != 0) {
+        result = clamp(result, color(0), color(1));
+    }
+}
+

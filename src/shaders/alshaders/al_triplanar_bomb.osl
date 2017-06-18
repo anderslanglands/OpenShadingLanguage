@@ -1,0 +1,172 @@
+//
+// This software is released under the MIT licence
+//
+// Copyright (c) 2013-2017 Anders Langlands
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to 
+// deal in the Software without restriction, including without limitation the 
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+// sell copies of the Software, and to permit persons to whom the Software is 
+// furnished to do so, subject to the following conditions: 
+//
+//      The above copyright notice and this permission notice shall be included 
+//      in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+// IN THE SOFTWARE.
+//
+
+// Original code by Espen Nordahl
+// This code is ported from alshaders original C++ implementation:
+// https://bitbucket.org/anderslanglands/alshaders
+// with some modifications by the appleseed team:
+// https://github.com/appleseedhq/appleseed/
+
+#include "voronoi.h"
+
+color bomb_regular(string filename, point p, vector weights, 
+                   vector scale, vector offset, vector rotation) {
+    color result = color(0);
+    
+    point pp = point(
+        (p[2] + 123.94 + offset[0]) * scale[0],
+        (p[1] + 87.22 + offset[0]) * scale[0],
+        0.0
+    );
+
+    pp = rotate(pp, radians(rotation[0]), point(0), point(0,0,1));
+
+    if (weights[0] > 0) {
+        result += texture(filename, pp[0], pp[1], "colorspace", "sRGB") * weights[0];
+    }
+
+    pp = point(
+        (p[0] + 74.1 + offset[1]) * scale[1],
+        (p[2] + 9.2 + offset[1]) * scale[1],
+        0.0
+    );
+
+    pp = rotate(pp, radians(rotation[1]), point(0), point(0,0,1));
+
+    if (weights[1] > 0) {
+        result += texture(filename, pp[0], pp[1], "colorspace", "sRGB") * weights[1];
+    }
+
+    pp = point(
+        (p[0] + 123.94 + offset[2]) * scale[2],
+        (p[1] + 87.22 + offset[2]) * scale[2],
+        0.0
+    );
+
+    pp = rotate(pp, radians(rotation[2]), point(0), point(0,0,1));
+
+    if (weights[2] > 0) {
+        result += texture(filename, pp[0], pp[1], "colorspace", "sRGB") * weights[2];
+    }
+
+    return result;
+}
+
+color lookup_cell(string filename, float uu, float vv, float cell_softness, float rotation, 
+                    float rotation_jitter) {
+    point p = point(uu, vv, 0);
+    // get voronoi for closest 3 cells
+    float f[3];
+    float rnd[3];
+    point pc[3];
+    voronoi3(p, 1, 2, f, pc, rnd);
+
+    // calculate normalized blend weights
+    float weights[3];
+    float sum = 0;
+    for (int i = 0; i < 3; ++i) {
+        float diff = f[i] - f[0];
+        weights[i] = cell_softness - diff;
+        weights[i] = max(0, weights[i]);
+        sum += weights[i];
+    }
+    if (sum != 0) {
+        for (int i = 0; i < 3; ++i) {
+            weights[i] /= sum;
+        }
+    }
+    // lookup texture at random orientation within cell
+    color result = color(0);
+  for (int i = 0; i < 3; ++i) {
+        result += texture(filename, pc[i][0] - 0.5, pc[i][1] - 0.5) 
+                    * weights[i];
+    }
+    return result;
+}
+
+color bomb_cellular(string filename, point p, vector weights, 
+                    float cell_softness, float rotation, 
+                    float rotation_jitter) {
+    color result = color(0);
+    result += lookup_cell(filename, p[1], p[2], cell_softness, rotation, rotation_jitter) * weights[0];
+    result += lookup_cell(filename, p[0], p[2], cell_softness, rotation, rotation_jitter) * weights[1];
+    result += lookup_cell(filename, p[1], p[0], cell_softness, rotation, rotation_jitter) * weights[2];
+    return result;
+}
+
+vector compute_weights(vector n, float blend_softness) {
+    vector result = abs(n);
+    float sum = 0;
+    for (int i = 0; i < 3; ++i) {
+        result[i] = result[i] - (1 - blend_softness) / 2;
+        result[i] = max(0, result[i]);
+        sum += result[i];
+    }
+    if (sum > 0) {
+        result /= sum;
+    }
+    return result;
+}
+
+shader al_triplanar_bomb [[
+    string help = "Triplanar texture bombing patterns."
+]] (
+    string filename = "" [[
+        string label = "Filename",
+        string help = "The texture to bomb.",
+        string widget = "filename",
+    ]],
+    color bg_color = color(0) [[
+        string label = "Background",
+        string help = "The color that the texture bombing will be composited " 
+        "on top of."
+    ]],
+    float frequency = 1 [[
+        string label = "Frequency"
+    ]],
+    float blend_softness = 0.1 [[
+        string label = "Blend softness",
+    ]],
+    float cell_softness = 0.1 [[
+        string label = "Cell softness",
+    ]],
+    vector scale = vector(1) [[
+        string label = "Scale",
+    ]],
+    vector offset = vector(0) [[
+        string label = "Offset",
+    ]],
+    vector rotation = vector(0) [[
+        string label = "Rotation",
+    ]],
+    vector rotation_jitter = vector(1) [[
+        string label = "Rotation jitter",
+    ]],
+    output color result = color(0)
+) {
+    point pp = P * frequency;
+    vector weights = compute_weights(N, blend_softness);
+    /*result = bomb_regular(filename, pp, weights, scale, offset, rotation);*/
+    result = bomb_cellular(filename, pp, weights, cell_softness, 0, 0);
+}

@@ -1,0 +1,158 @@
+//
+// This software is released under the MIT licence
+//
+// Copyright (c) 2013-2017 Anders Langlands
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to 
+// deal in the Software without restriction, including without limitation the 
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or 
+// sell copies of the Software, and to permit persons to whom the Software is 
+// furnished to do so, subject to the following conditions: 
+//
+//      The above copyright notice and this permission notice shall be included 
+//      in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, 
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE 
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER 
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING 
+// FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS 
+// IN THE SOFTWARE.
+//
+
+// This code is ported from alshaders original C++ implementation:
+// https://bitbucket.org/anderslanglands/alshaders
+// with some modifications by the appleseed team:
+// https://github.com/appleseedhq/appleseed/
+
+#include "remap.h"
+
+shader al_gabor [[
+    string help = "Fractal gabor noise pattern"
+]] (
+    int mode = 0 [[
+        string label = "Mode",
+        string widget = "mapper",
+        string options = "scalar:0|vector:1",
+        string help = "Choose either scalar or vector result. In the case of "
+        "vector noise, the remapping parameters will be ignored."
+    ]],
+    string space = "common" [[
+        string label = "Space",
+        string widget = "popup",
+        string options="common|object|uv|shader|world|camera|screen|raster|NDC",
+        int editable = 1,
+        string help = "Which coordinate system to calculate the noise in."
+    ]],
+    vector offset = vector(0) [[
+        string label = "Offset",
+        string help = "Per-axis offset to the space."
+    ]],
+    vector scale = vector(1) [[
+        string label = "Scale",
+        string help = "Per-axis scale on the space."
+    ]],
+    float frequency = 1 [[
+        string label = "Frequency"
+    ]],
+    float time_input = 0 [[
+        string label = "Time",
+        string help = "Fourth dimension to the noise space. Can be useful for "
+        "animating a 3D noise pattern."
+    ]],
+    int anisotropy = 0 [[
+        string label = "Anisotropy",
+        string widget = "mapper",
+        string options = "isotropic:0|anisotropic:1|hybrid:2"
+    ]],
+    vector direction = vector(1,0,0) [[
+        string label = "Direction"
+    ]],
+    float bandwidth = 1 [[
+        string label = "Bandwidth"
+    ]],
+    float impulses = 16 [[
+        string label = "Impulses"
+    ]],
+    int octaves = 1 [[
+        string label = "Octaves"
+    ]],
+    float distortion = 0 [[
+        string label = "Distortion"
+    ]],
+    float lacunarity = 2.121 [[
+        string label = "Lacunarity"
+    ]],
+    float gain = 0.5 [[
+        string label = "Gain",
+    ]],
+    int turbulent = 0 [[
+        string label = "Turbulent",
+        string widget = "checkBox"
+    ]],
+    
+    AL_REMAP_FLOAT_DECLARE,
+
+    color color1 = color(0) [[
+        string label = "Color 1",
+    ]],
+    color color2 = color(1) [[
+        string label = "Color 2"
+    ]],
+
+    output color result = color(0)
+
+) {
+    point pp = P;
+    if (space == "uv") {
+        pp = point(u, v, 0);
+    } else if (space != "common") {
+        pp = transform(space, pp);
+    }
+    pp += offset;
+    pp *= scale;
+    pp *= frequency;
+
+    if (mode == 0) {
+        float n = 0;
+        float amp = 1;
+        for (int i = 0; i < octaves; ++i) {
+            point pd = pp;
+            if (distortion != 0) {
+                vector d = snoise(pp) * distortion;
+                pd += d;
+            }
+            float val = noise("gabor", pd, time_input);
+            if (turbulent) {
+                val = abs(val);
+            }
+            n += val * amp;
+            amp *= gain;
+            pp *= lacunarity;
+        }
+        
+        n = AL_REMAP_FLOAT(n);
+        result = mix(color1, color2, n);
+    } else {
+        color n = color(0);
+        float amp = 1;
+        for (int i = 0; i < octaves; ++i) {
+            point pd = pp;
+            if (distortion != 0) {
+                vector d = snoise(pp) * distortion;
+                pd += d;
+            }
+            color val = noise("gabor", pd, time_input);
+            if (turbulent) {
+                val = abs(val);
+            }
+            n += val * amp;
+            amp *= gain;
+            pp *= lacunarity;
+        }
+        result = normalize(n); 
+    }
+}
+
